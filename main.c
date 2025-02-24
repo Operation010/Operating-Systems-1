@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>     // fork, execv, chdir, etc.
+#include <unistd.h>     // fork, execv, chdir, getcwd, etc.
 #include <sys/types.h>
 #include <sys/wait.h>   // wait, waitpid
 #include <errno.h>
@@ -27,8 +27,15 @@ int main(void) {
     char cmdline[MAX_CMD_LEN];
 
     while (1) {
-        // Print prompt
-        printf("os1> ");
+        // Dynamically get current working directory
+        char *cwd = getcwd(NULL, 0);  // NULL + 0 => allocate as needed
+        if (cwd) {
+            printf("os1:%s> ", cwd);
+            free(cwd);               // free after printing
+        } else {
+            perror("getcwd");
+            printf("os1> ");         // fallback
+        }
         fflush(stdout);
 
         // Read input (fgets returns NULL if EOF or error)
@@ -67,9 +74,9 @@ int main(void) {
             }
         }
 
-        // If we found no pipe or we ignore multiple-pipe scenario:
+        // If no pipe or ignoring multiple-pipe scenario:
         if (pipeIndex == -1) {
-            // No pipe: either built-in or single external
+            // Either a built-in or single external command
             if (is_builtin(argv)) {
                 execute_builtin(argv);
             } else {
@@ -187,7 +194,7 @@ char* find_executable(char *cmd) {
         }
         snprintf(fullpath, len, "%s/%s", token, cmd);
 
-        // Check if it's executable (no 'access', but we can use 'stat')
+        // Check if it's executable
         struct stat st;
         if (stat(fullpath, &st) == 0 && (st.st_mode & S_IXUSR)) {
             free(paths);
